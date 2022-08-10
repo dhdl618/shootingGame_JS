@@ -14,7 +14,7 @@ canvas.width = 400;
 canvas.height = 900;
 
 // 캔버스 이미지 삽입
-let backgroundImg, spaceshipImg, bulletImg, enemyImg, gameOverImg
+let backgroundImg, spaceshipImg, bulletImg, enemyImg, gameOverImg, hitImg, specialMoveImg
 
 // 우주선 좌표 (동적으로 변하기에 변수를 따로 할당)
 let spaceshipX = canvas.width / 2 - 32
@@ -26,7 +26,7 @@ function loadImage() {
     backgroundImg.src = "img/space-background.gif"
 
     spaceshipImg = new Image()
-    spaceshipImg.src = "img/spaceship2.png"
+    spaceshipImg.src = "img/spaceship.png"
 
     bulletImg = new Image()
     bulletImg.src = "img/bullet.png"
@@ -39,6 +39,12 @@ function loadImage() {
 
     gameOverImg = new Image()
     gameOverImg.src = "img/gameover.png"
+
+    hitImg = new Image()
+    hitImg.src = "img/hit.png"
+
+    specialMoveImg = new Image()
+    specialMoveImg.src = "img/specialMove.png"
 }
 
 // 키 셋업 함수
@@ -58,30 +64,26 @@ function setUpKeyboardListener() {
 function update() {
     if('ArrowRight' in keyPress) {
         if(spaceshipX < 336) {    // 캔버스를 벗어나지 않도록 설정
-            spaceshipX += 5       // 우주선 움직이는 속도   // 오른쪽 이동
+            spaceshipX += 4       // 우주선 움직이는 속도   // 오른쪽 이동
         }       
     } else if('ArrowLeft' in keyPress) {
         if(spaceshipX > 0) {
-            spaceshipX -= 5       // 왼쪽 이동
+            spaceshipX -= 4      // 왼쪽 이동
         }
     } else if('ArrowUp' in keyPress) {
         if(spaceshipY > 0) {
-            spaceshipY -= 5       // 위로 이동
+            spaceshipY -= 4       // 위로 이동
         }
     } else if('ArrowDown' in keyPress) {
         if(spaceshipY < 836) {
-            spaceshipY += 5       // 아래로 이동
+            spaceshipY += 4       // 아래로 이동
         }
     }
-
-    // if(enemy.y > 660) {
-    //     delete enemy
-    // }
 }
 
 class Enemy {
     constructor() {
-        this.x = Math.ceil(Math.random() * 350)
+        this.x = Math.ceil(Math.random() * 360)
         this.y = 0
     }
     draw() {
@@ -93,7 +95,7 @@ class Enemy {
 
 class ForcedEnemy {
     constructor() {
-        this.x = Math.ceil(Math.random() * 350)
+        this.x = Math.ceil(Math.random() * 345)
         this.y = 0
         this.life = 1
     }
@@ -106,6 +108,7 @@ class Bullet {
     constructor() {
         this.x = spaceshipX+15
         this.y = spaceshipY-18
+        this.life = 0
     }
     shoot() {
         // ctx.fillStyle = "green"
@@ -114,13 +117,26 @@ class Bullet {
     }
 }
 
+class SpecialBomb {
+    constructor() {
+        this.x = 0
+        this.y = 900
+    }
+    shoot() {
+        for(let i=0; i<400; i+=40){
+            ctx.drawImage(specialMoveImg, i, this.y)
+        }
+    }
+}
+
 let timer = 0
 let score = 0
 let level = 1
 let enemyList = []
-let forcedEnemyList = []
 let bulletList = []
 let isPause = false
+let specialMove = 0
+let specialBombList = []
 
 document.addEventListener("keydown", function(e) {
     if(e.key === " ") {
@@ -134,6 +150,30 @@ function makeBullet() {
     // console.log(bulletList)
 }
 
+function makeSpecialMove() {
+  specialMove += 1;
+  if (specialMove > 1) {
+    specialMove = 1;
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Control") {
+      if (specialMove <= 0) {
+        specialMove = 0;
+      } else {
+        specialMove -= 1;
+        shootSpecialBomb()
+      }
+    }
+  });
+}
+
+function shootSpecialBomb() {
+    let specialBomb = new SpecialBomb
+    specialBombList.push(specialBomb)
+    console.log("필살기",specialBombList)
+}
+
 function enemyDevelope(species) {
     species.forEach(function(enemy, i, o) {      // enemy 각각
         if(enemy.y > 900) {
@@ -143,16 +183,16 @@ function enemyDevelope(species) {
         
         switch (level) {
             case 2:
-                enemy.y += 1.5       // 적이 이동하는 속도
+                enemy.y += 1.2       // 적이 이동하는 속도
                 break
             case 3:
-                enemy.y += 2
+                enemy.y += 1.4
                 break
             case 4:
-                enemy.y += 3
+                enemy.y += 1.7
                 break
             case 5:
-                enemy.y += 4
+                enemy.y += 2
                 break
             default:
                 enemy.y += 1
@@ -164,57 +204,46 @@ function enemyDevelope(species) {
         let enemySpaceXend = (enemy.x+35)-spaceshipX
         let enemySpaceY = (enemy.y+35)-spaceshipY
         let enemySpaceYend = enemy.y-(spaceshipY+60)
-        if(enemySpaceX <= 0 && enemySpaceXend > 0 
-            && enemySpaceY > 0 && enemySpaceYend < 0) {
-                gameOver()
-            console.log("닿았다.")
+        if(enemySpaceX <= 0 && enemySpaceXend > 0 && enemySpaceY > 0 && enemySpaceYend < 0) {
+            gameOver()
         }
     }) 
 }
 
-function hitEnemy(species) {
-    species.forEach(function(enemy,i, e_o) {
-        bulletList.forEach(function(bullet,j ,b_o) {
-            collision(enemy, bullet,i ,j, e_o, b_o)
+function hitEnemy(species, bulletType) {
+    species.forEach(function(enemy, i, e_o) {  // i는 적의 index, e_o는 enemyList
+        bulletType.forEach(function(bullet, j, b_o) { // j는 총알 index, b_o는 bulletList
+            collision(enemy, bullet, i, j, e_o, b_o)
         })
     })
     
     function collision (enemy, bullet, i, j, e_o, b_o) {
-        if(enemy == forcedEnemyList[i]) {
-            let attackY = (enemy.y + 40) - bullet.y
-            let attackX = (enemy.x-20) - bullet.x
-            let attackXend = (enemy.x + 30) - bullet.x
-            let attackYend = enemy.y - (bullet.y+25)
+        let attackY = (enemy.y + 40) - bullet.y
+        let attackX = (enemy.x-20) - bullet.x
+        let attackXend = (enemy.x + 30) - bullet.x
+        let attackYend = enemy.y - (bullet.y+25)
 
-            if (attackY > 0 && attackX <= 0
-                && attackXend > 0 && attackYend < 0) {
-                console.log("강화된 적 맞춤")
-                
-                if(enemy.life == 0) {
-                    e_o.splice(i,1)
-                    b_o.splice(j,1)
-                    score += 1
-                } else {
+        if (attackY > 0 && attackX <= 0 && attackXend > 0 && attackYend < 0) {
+            if(bulletType == bulletList) {
+                if(enemy.life == 1) {
                     b_o.splice(j,1)
                     enemy.life -= 1
-                    console.log("life",enemy.life)
+                    console.log("강화된 적 맞춤")
+                } else {
+                    console.log("적 사살")
+                    score += 1
+                    ctx.drawImage(hitImg, enemy.x,enemy.y)
+                    e_o.splice(i,1)
+                    b_o.splice(j,1)
+
+                    if(score % 10 == 0) {
+                        makeSpecialMove()
+                    }
                 }
-                
-            }
-
-        } else {
-            let attackY = (enemy.y + 40) - bullet.y
-            let attackX = (enemy.x-20) - bullet.x
-            let attackXend = (enemy.x + 30) - bullet.x
-            let attackYend = enemy.y - (bullet.y+25)
-
-            if (attackY > 0 && attackX <= 0
-                && attackXend > 0 && attackYend < 0) {
-                console.log("적 맞춤")
+            } else if(bulletType == specialBombList) {
                 score += 1
-
+                ctx.drawImage(hitImg, enemy.x,enemy.y)
                 e_o.splice(i,1)
-                b_o.splice(j,1)
             }
         }
 
@@ -235,37 +264,40 @@ function render() {
     ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height)   // drawImage 함수는 내장, 인자로 image, dx, dy, dWidth, dHeight
     ctx.drawImage(spaceshipImg, spaceshipX, spaceshipY)
        
-    if(level > 1) {              
-        let pickEnemy = Math.ceil(Math.random()*3)
-        if(pickEnemy == 1 || pickEnemy == 2) {
-            enemyDevelope(enemyList)                 // 적을 생성
-        } else (
-            enemyDevelope(forcedEnemyList)           // 강화된 적 생성
-        )
-    } else {
-        enemyDevelope(enemyList)
-    }
+    enemyDevelope(enemyList)
     
     bulletList.forEach(function(bullet, i, o) {    // bullet 각각
         if(bullet.y < 0) {
             o.splice(i,1)                // 총알이 천장에 닿으면 사라짐
         }
 
-        bullet.y -= 7           // 총알 속도
+        bullet.y -= 10           // 총알 속도
         bullet.shoot()          // 총알 발사 함수
     })
-
-    hitEnemy(enemyList)
-    hitEnemy(forcedEnemyList)
     
+    hitEnemy(enemyList, bulletList)
+    
+    specialBombList.forEach(function(specialBomb, i, o) {
+        if(specialBomb.y < 0) {
+            o.splice(i,1)                // 총알이 천장에 닿으면 사라짐
+        }
 
-    ctx.font = "20px gothic";  // 폰트 크기, 스타일
-    ctx.fillStyle = "rgb(255,255,255)";  // 색상
-    ctx.fillText(`Score: ${score}`, 5, 20);  // canvas에 text 추가
+        specialBomb.shoot()
+        specialBomb.y -= 8
+    })
+
+    hitEnemy(enemyList ,specialBombList)
     
     ctx.font = "20px gothic";  // 폰트 크기, 스타일
-    ctx.fillStyle = "gray";  // 색상
-    ctx.fillText(`Level: ${level}`, 315, 20);  // canvas에 text 추가
+    ctx.fillStyle = "rgb(255,255,255)"  // 색상
+    ctx.fillText(`Score: ${score}`, 5, 20) // canvas에 text 추가
+    
+    ctx.fillStyle = "rgb(255,255,255)"
+    ctx.fillText(`Chance: ${specialMove}`, 3, 45) //
+    
+    ctx.font = "20px gothic"  // 폰트 크기, 스타일
+    ctx.fillStyle = "gray"  // 색상
+    ctx.fillText(`Level: ${level}`, 315, 20)  // canvas에 text 추가
 }
 
 let animation
@@ -277,20 +309,19 @@ function main() {
     timer ++
     if(timer % Math.ceil(Math.random() * 1000) === 0){    // 일정하지 않고 랜덤한 확률로 적 등장
         if(level > 1) {
-            let pickEnemy = Math.ceil(Math.random()*2)
-            if(pickEnemy == 1) {
+            let pickEnemy = Math.ceil(Math.random()*10)
+            if(pickEnemy == 5) {
+                let forcedEnemy = new ForcedEnemy()
+                enemyList.push(forcedEnemy)
+            } else {
                 let enemy = new Enemy()
                 enemyList.push(enemy)
-            } else {
-                let forcedEnemy = new ForcedEnemy()
-                forcedEnemyList.push(forcedEnemy)
             }
         } else {
             let enemy = new Enemy()
             enemyList.push(enemy)
         }
         console.log(enemyList)
-        console.log(forcedEnemyList)
     }
     
     update()    // 좌표 업데이트
@@ -308,17 +339,17 @@ function gameOver() {
     
     isPause = true
     ctx.drawImage(gameOverImg, 45, 250)
-    ctx.fillText("Press [SpaceBar] to Restart", 75, 550)
+    ctx.fillText("Press [R] to Restart", 115, 550)
+    ctx.fillStyle = "lightgrey"
+    ctx.fillText(`Score: ${score}`, canvas.width/2-35, 510)
     cancelAnimationFrame(animation)
     
     console.log("Game Over",isPause)
 
     document.addEventListener("keydown", function(e) {
-    if(e.key === " ") {
+    if(e.key === "r") {
         reset()
     }})
-    
-    // console.log("죽음", animation)
 }
 
 function reset() {
@@ -326,7 +357,6 @@ function reset() {
         window.location.reload()     // 페이지를 새로고침
     }
 }
-
 
 loadImage()
 setUpKeyboardListener()
